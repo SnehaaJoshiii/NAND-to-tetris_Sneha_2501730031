@@ -1,0 +1,71 @@
+// Hack CPU: fetches instructions, executes C-instructions, and updates PC.
+
+CHIP CPU {
+    IN inM[16], instruction[16], reset;
+    OUT outM[16], writeM, addressM[15], pc[15];
+
+    PARTS:
+    Not(in=instruction[15], out=isAInstruction);
+    Or(a=isAInstruction, b=instruction[5], out=loadA);
+    Mux16(a=instruction, b=aluOut, sel=instruction[15], out=aInput);
+    ARegister(in=aInput, load=loadA, out=aOut, out[0..14]=addressM);
+
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=dOut);
+
+    Mux16(a=aOut, b=inM, sel=instruction[12], out=aluY);
+    ALU(x=dOut, y=aluY,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8],
+        f=instruction[7], no=instruction[6],
+        out=aluOut, out=outM, zr=zr, ng=ng);
+
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    Not(in=instruction[2], out=notJlt);
+    Not(in=instruction[1], out=notJeq);
+    Not(in=instruction[0], out=notJgt);
+
+    Not(in=zr, out=notZr);
+    Not(in=ng, out=positive);
+    And(a=positive, b=notZr, out=greater);
+    Or(a=zr, b=ng, out=lessOrEqual);
+
+    And(a=notJlt, b=notJeq, out=jgtPattern);
+    And(a=jgtPattern, b=instruction[0], out=isJgt);
+    And(a=isJgt, b=greater, out=takeJgt);
+
+    And(a=notJlt, b=instruction[1], out=jeqPattern);
+    And(a=jeqPattern, b=notJgt, out=isJeq);
+    And(a=isJeq, b=zr, out=takeJeq);
+
+    And(a=notJlt, b=instruction[1], out=jgePattern);
+    And(a=jgePattern, b=instruction[0], out=isJge);
+    And(a=isJge, b=positive, out=takeJge);
+
+    And(a=instruction[2], b=notJeq, out=jltPattern);
+    And(a=jltPattern, b=notJgt, out=isJlt);
+    And(a=isJlt, b=ng, out=takeJlt);
+
+    And(a=instruction[2], b=notJeq, out=jnePattern);
+    And(a=jnePattern, b=instruction[0], out=isJne);
+    And(a=isJne, b=notZr, out=takeJne);
+
+    And(a=instruction[2], b=instruction[1], out=jlePattern);
+    And(a=jlePattern, b=notJgt, out=isJle);
+    And(a=isJle, b=lessOrEqual, out=takeJle);
+
+    And(a=instruction[2], b=instruction[1], out=jmpPattern);
+    And(a=jmpPattern, b=instruction[0], out=isJmp);
+    And(a=isJmp, b=instruction[15], out=takeJmp);
+
+    Or(a=takeJgt, b=takeJeq, out=jump1);
+    Or(a=jump1, b=takeJge, out=jump2);
+    Or(a=jump2, b=takeJlt, out=jump3);
+    Or(a=jump3, b=takeJne, out=jump4);
+    Or(a=jump4, b=takeJle, out=jump5);
+    Or(a=jump5, b=takeJmp, out=jumpIfSelected);
+    And(a=instruction[15], b=jumpIfSelected, out=loadPC);
+
+    PC(in=aOut, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
+}

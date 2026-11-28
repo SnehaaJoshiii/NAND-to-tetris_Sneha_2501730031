@@ -1,0 +1,13 @@
+// Hack computer: CPU, data memory, and instruction memory.
+
+CHIP Computer {
+    IN reset;
+
+    PARTS:
+    ROM32K(address=pc, out=instruction);
+    CPU(inM=memoryOut, instruction=instruction, reset=reset,
+        outM=cpuOut, writeM=writeMemory,
+        addressM=memoryAddress, pc=pc);
+    Memory(in=cpuOut, load=writeMemory,
+        address=memoryAddress, out=memoryOut);
+}
